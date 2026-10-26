@@ -1,0 +1,24 @@
+name: ruyijs-smoke
+
+on:
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install ruyijs
+        run: python -m pip install ruyijs
+
+      - name: Package info
+        run: python -c "import ruyijs, sys; print('python', sys.version); print('ruyijs', getattr(ruyijs, '__version__', 'unknown'))"
+
+      - name: Run smoke test
+        run: python smoke_test.py
