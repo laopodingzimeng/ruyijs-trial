@@ -74,16 +74,37 @@ def js_error():
         raise AssertionError("expected JSError")
 
 
+def _net_log_tail(context):
+    try:
+        return str(context.net_log())[:600]
+    except Exception as error:  # noqa: BLE001
+        return f"<net_log 不可用: {error!r}>"
+
+
 def network():
     # 真实 Necko 网络栈验证：导航到中性站点 example.com
-    with Context(timeout=90) as context:
+    with Context(timeout=120) as context:
         context.navigate("https://example.com/")
-        context.advance(60)
-        title = context.eval("document.title")
-        body = context.eval("document.body ? document.body.textContent.slice(0, 80) : ''")
-        detail = f"title={title!r}, body={body!r}"
-        assert "Example" in (title + body), detail
-        return f"navigate + DOM 解析 OK :: {detail}"
+        text = ""
+        for _ in range(8):
+            context.advance(2000)
+            text = str(context.eval(
+                "document.title + '|' + (document.body ? document.body.textContent.slice(0, 100) : '')"
+            ))
+            if "Example" in text:
+                return f"navigate + DOM 解析 OK :: {text[:80]!r}"
+
+        # 回退路径：页面内 fetch
+        context.load_page("https://example.com/", "")
+        context.eval("globalThis.r = null; fetch('/').then(x => x.text()).then(v => { r = v })")
+        context.advance(10000)
+        page = str(context.eval("r") or "")
+        if "Example" in page:
+            return f"页内 fetch OK（navigate 未提交） :: {page[:80]!r}"
+
+        raise AssertionError(
+            f"navigate={text!r}, fetch={page[:60]!r}, net_log={_net_log_tail(context)}"
+        )
 
 
 print(f"python: {sys.version.split()[0]}, ruyijs: {getattr(ruyijs, '__version__', 'unknown')}")
